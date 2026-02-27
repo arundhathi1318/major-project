@@ -5,7 +5,7 @@ import { ExpenseChart } from './ExpenseChart';
 import { IncomeExpenseChart } from './IncomeExpenseChart';
 import { SavingsProgress } from './SavingsProgress';
 import { Chatbot } from './Chatbot';
-import { Wallet, Receipt, CreditCard, PiggyBank, Settings, User } from 'lucide-react';
+import { Wallet, Receipt, CreditCard, PiggyBank} from 'lucide-react';
 
 export function Dashboard() {
   const { data, getTotalExpenses, getTotalEMI, getNetSavings } = useFinance();
@@ -30,7 +30,7 @@ export function Dashboard() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-secondary/30">
       {/* Header */}
-      <header className="sticky top-0 z-40 bg-background/80 backdrop-blur-lg border-b border-border">
+      <header className="realtive bg-background/80 backdrop-blur-lg border-b border-border">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center gap-3">
@@ -42,12 +42,7 @@ export function Dashboard() {
               </div>
             </div>
             <div className="flex items-center gap-3">
-              <button className="p-2 hover:bg-secondary rounded-lg transition-colors">
-                <Settings className="w-5 h-5 text-muted-foreground" />
-              </button>
-              <button className="w-9 h-9 bg-primary/10 rounded-full flex items-center justify-center">
-                <User className="w-5 h-5 text-primary" />
-              </button>
+             
             </div>
           </div>
         </div>

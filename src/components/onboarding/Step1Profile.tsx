@@ -37,6 +37,7 @@ export function Step1Profile() {
               min={18}
               max={100}
               className="finpilot-input"
+              placeholder="Enter your age"
             />
           </div>
           <div>
@@ -45,6 +46,7 @@ export function Step1Profile() {
               value={profile.gender}
               onChange={(e) => updateProfile({ gender: e.target.value as typeof profile.gender })}
               className="finpilot-input"
+              aria-label="Gender"
             >
               <option value="male">Male</option>
               <option value="female">Female</option>
@@ -81,13 +83,15 @@ export function Step1Profile() {
 
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-foreground mb-2">
+            <label htmlFor="maritalStatus" className="block text-sm font-medium text-foreground mb-2">
               <Users className="w-4 h-4 inline mr-1" /> Marital Status
             </label>
             <select
+              id="maritalStatus"
               value={profile.maritalStatus}
               onChange={(e) => updateProfile({ maritalStatus: e.target.value as typeof profile.maritalStatus })}
               className="finpilot-input"
+              aria-label="Marital Status"
             >
               <option value="single">Single</option>
               <option value="married">Married</option>
@@ -96,11 +100,13 @@ export function Step1Profile() {
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-foreground mb-2">Family Type</label>
+            <label htmlFor="familyType" className="block text-sm font-medium text-foreground mb-2">Family Type</label>
             <select
+              id="familyType"
               value={profile.familyType}
               onChange={(e) => updateProfile({ familyType: e.target.value as typeof profile.familyType })}
               className="finpilot-input"
+              aria-label="Family Type"
             >
               <option value="single">Single</option>
               <option value="couple">Couple</option>
@@ -119,6 +125,8 @@ export function Step1Profile() {
               min={0}
               max={10}
               className="finpilot-input"
+              placeholder="Enter number of dependents"
+              title="Number of Dependents"
             />
           </div>
           <div>
@@ -129,6 +137,8 @@ export function Step1Profile() {
               value={profile.employmentType}
               onChange={(e) => updateProfile({ employmentType: e.target.value as typeof profile.employmentType })}
               className="finpilot-input"
+              aria-label="Employment Type"
+              title="Employment Type"
             >
               <option value="student">Student</option>
               <option value="salaried">Salaried</option>
