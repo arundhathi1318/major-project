@@ -1,69 +1,267 @@
 import os
-from fastapi import FastAPI, UploadFile, File, HTTPException
+import uuid
+import pdfplumber
+from typing import Optional
+from contextlib import asynccontextmanager
+
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-import google.generativeai as genai
-from analysisengine import analyze_statement
+from dotenv import load_dotenv
 
-app = FastAPI()
+from google import genai
+import re
 
-# --- CORS CONFIGURATION ---
-# Allows frontend communication
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"], 
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+clean_text = re.sub(r'[\*\#\_\`\~]', '', response.text)  # strip markdown chars
+clean_text = re.sub(r'\n{3,}', '\n\n', clean_text).strip()  # collapse blank lines
+from analysisengine import (
+    chunk_text,
+    get_embeddings,
+    store_rag_document,
+    retrieve_rag_document,
+    semantic_search,
 )
 
-# --- GEMINI AI SETUP ---
-# Make sure to replace with your actual API key
-GEMINI_API_KEY = "YOUR_GEMINI_API_KEY" 
-genai.configure(api_key=GEMINI_API_KEY)
-model = genai.GenerativeModel('gemini-1.5-flash')
+# ===============================
+# LOAD ENV VARIABLES
+# ===============================
+
+load_dotenv()
+
+# ===============================
+# GEMINI CLIENT INIT
+# ===============================
+
+client = genai.Client(
+    api_key=os.getenv("GEMINI_API_KEY")
+)
+
+# ===============================
+# GLOBAL STORAGE
+# ===============================
+
+GOV_DOC_ID: Optional[str] = None
+
+# ===============================
+# LOAD GOV RULES PDF AT STARTUP
+# ===============================
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+
+    global GOV_DOC_ID
+
+    pdf_path = "docs/govt_rules.pdf"
+
+    if os.path.exists(pdf_path):
+
+        try:
+
+            text = ""
+
+            with pdfplumber.open(pdf_path) as pdf:
+
+                for page in pdf.pages:
+
+                    extracted = page.extract_text()
+
+                    if extracted:
+
+                        text += extracted + "\n"
+
+
+            if text.strip():
+
+                chunks = chunk_text(text)
+
+                embeddings = get_embeddings(chunks)
+
+                rag_docs = []
+
+                for chunk, emb in zip(chunks, embeddings):
+
+                    rag_docs.append({
+
+                        "text": chunk,
+                        "embedding": emb
+
+                    })
+
+
+                GOV_DOC_ID = str(uuid.uuid4())
+
+                store_rag_document(GOV_DOC_ID, rag_docs)
+
+                print(f"✅ {pdf_path} loaded successfully into RAG")
+
+            else:
+
+                print("⚠️ govt_rules.pdf contains no readable text")
+
+        except Exception as e:
+
+            print("❌ Failed loading govt_rules.pdf:", e)
+
+    else:
+
+        print("⚠️ govt_rules.pdf not found — RAG disabled")
+
+
+    yield
+
+
+# ===============================
+# FASTAPI INIT
+# ===============================
+
+app = FastAPI(lifespan=lifespan)
+
+# ===============================
+# CORS CONFIG
+# ===============================
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"]
+)
+
+# ===============================
+# REQUEST MODEL
+# ===============================
 
 class ChatRequest(BaseModel):
+
     user_context: dict
     message: str
 
-# --- ENDPOINTS ---
 
-@app.post("/analyze-statement")
-async def handle_analyze_statement(file: UploadFile = File(...)):
-    """API endpoint to parse PDF and return structured JSON"""
-    return await analyze_statement(file)
+# ===============================
+# CHAT ENDPOINT (SELECTIVE RAG)
+# ===============================
 
 @app.post("/chat")
-async def chat_with_finpilot(request: ChatRequest):
-    """Conversational AI using the RAG pattern (Knowledge Base injection)"""
-    u = request.user_context
-    
-    # Injecting user's real financial data into the AI's system prompt
-    knowledge_base = f"""
-    You are FinPilot, a professional AI financial assistant.
-    USER CONTEXT:
-    - Name: {u.get('profile', {}).get('fullName', 'User')}
-    - Period: {u.get('month_display', 'Current Month')}
-    - Monthly Income: ₹{u.get('total_income', 0)}
-    - Total Expenses: ₹{u.get('total_spent', 0)}
-    - Top Spending: {u.get('top_category', 'N/A')}
-    - Loan Eligibility: {u.get('loan_eligible', 'Unknown')} (Calculated via Random Forest)
-    
-    INSTRUCTIONS:
-    1. Be concise, friendly, and use the user's specific numbers.
-    2. If the user isn't eligible for a loan, give them 2 steps to improve.
-    3. Analyze PhonePe/UPI spending trends based on the context.
-    """
+
+async def chat(request: ChatRequest):
+
+    rag_context = "NO_MATCH_FOUND"
+
+    finance_keywords = [
+
+        "tax",
+        "gst",
+        "policy",
+        "subsidy",
+        "deduction",
+        "section 80c",
+        "government",
+        "scheme",
+        "interest rule"
+
+    ]
+
+    # ===============================
+    # SELECTIVE DOCUMENT RETRIEVAL
+    # ===============================
+
+    if GOV_DOC_ID and any(
+
+        word in request.message.lower()
+
+        for word in finance_keywords
+
+    ):
+
+        docs = retrieve_rag_document(GOV_DOC_ID)
+
+        fragments = semantic_search(
+
+            request.message,
+            docs,
+            top_k=3
+
+        )
+
+        if fragments:
+
+            rag_context = "\n\n".join(fragments)
+
+
+    # ===============================
+    # PROMPT DESIGN (GROUNDING LOGIC)
+    # ===============================
+
+    prompt = """
+
+You are FinPilot, a professional AI financial assistant.
+
+Follow these answer priority rules strictly:
+
+PRIORITY 1:
+If DOCUMENT CONTEXT contains relevant financial policy or taxation information,
+use ONLY that information.
+
+PRIORITY 2:
+If DOCUMENT CONTEXT = NO_MATCH_FOUND,
+use USER DATA for personalized advice.
+
+PRIORITY 3:
+If neither applies,
+answer using safe general financial knowledge.
+
+Never hallucinate government policies.
+keep the response under 100 words or lesss only .
+
+-----------------------------------
+
+USER DATA:
+
+{request.user_context}
+
+-----------------------------------
+
+DOCUMENT CONTEXT:
+
+{rag_context}
+
+-----------------------------------
+
+USER QUESTION:
+
+{request.message}
+
+Provide a short and accurate response.
+Do NOT use markdown symbols like *, #, -, or bullet formatting.
+Write output as clean plain sentences.
+"""
+
+    # ===============================
+    # GEMINI RESPONSE GENERATION
+    # ===============================
 
     try:
-        full_query = f"{knowledge_base}\n\nUser Question: {request.message}"
-        response = model.generate_content(full_query)
-        return {"response": response.text}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
 
-if __name__ == "__main__":
-    import uvicorn
-    # Port 8000 is the standard for FastAPI
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+        response = client.models.generate_content(
+
+            model="gemini-2.5-flash",
+
+            contents=prompt
+
+        )
+
+        clean_text = response.text.replace("*", "").replace("#", "")
+
+        return {
+            "response": clean_text
+        }
+
+    except Exception as e:
+
+        raise HTTPException(
+
+            status_code=500,
+
+            detail=str(e)
+
+        )

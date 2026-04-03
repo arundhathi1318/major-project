@@ -1,130 +1,78 @@
 import re
 import pdfplumber
-import pandas as pd
-from fastapi import UploadFile, File
-from sklearn.ensemble import RandomForestClassifier
 import numpy as np
 from io import BytesIO
+from google import genai
+import os
 
-# 1. --- ML MODEL SETUP ---
-def get_loan_model():
-    # Training data: [Income, Expenses, SavingsRatio, TransactionCount]
-    X = np.array([
-        [80000, 20000, 0.75, 10], 
-        [20000, 19000, 0.05, 50], 
-        [50000, 25000, 0.50, 20],
-        [120000, 30000, 0.75, 15],
-        [35000, 32000, 0.08, 45]
-    ])
-    y = np.array([1, 0, 1, 1, 0]) # 1 = Eligible, 0 = Not
-    model = RandomForestClassifier(n_estimators=100, random_state=42)
-    model.fit(X, y)
-    return model
+# Initialize the new Client
+from dotenv import load_dotenv
 
-loan_model = get_loan_model()
+load_dotenv() # This loads the variables from .env
+client = genai.Client(api_key=os.getenv("VITE_GEMINI_KEY"))
 
-# 2. --- PHONEPE / UPI TAG MAPPING ---
-TAG_MAP = {
-    "Food & Dining": ["zomato", "swiggy", "blinkit", "restaurant", "kfc", "mcdonalds", "burger", "pizza", "starbucks", "eats"],
-    "Travel": ["uber", "ola", "rapido", "irctc", "makemytrip", "petrol", "shell", "hpcl", "fuel", "gas", "auto", "train"],
-    "Shopping": ["amazon", "flipkart", "myntra", "ajio", "nykaa", "bigbasket", "dmart", "retail", "store", "mall"],
-    "Utilities": ["bescom", "airtel", "jio", "vi ", "recharge", "electricity", "water", "actfibernet", "broadband", "bill"],
-    "Entertainment": ["netflix", "prime", "hotstar", "spotify", "bookmyshow", "pvr", "gaming", "subscription", "youtube"],
-    "Rent": ["rent", "housing", "owner", "broker", "lease", "security deposit"],
-    "Salary": ["salary", "stipend", "wages", "hcl", "tcs", "infosys", "google", "credited", "income"]
-}
+RAG_STORE = {}
 
-def categorize_transaction(description):
-    desc = str(description).lower()
-    for category, keywords in TAG_MAP.items():
-        if any(k in desc for k in keywords):
-            return category
-    return "Others"
+def cosine_similarity(v1, v2):
+    v1 = np.array(v1, dtype=float)
+    v2 = np.array(v2, dtype=float)
+    if np.linalg.norm(v1) == 0 or np.linalg.norm(v2) == 0:
+        return 0
+    return float(np.dot(v1, v2) / (np.linalg.norm(v1) * np.linalg.norm(v2)))
 
-def extract_period(text):
-    """Detects the month and year from the statement text for historical storage"""
-    months = ["january", "february", "march", "april", "may", "june", 
-              "july", "august", "september", "october", "november", "december"]
-    text_lower = text.lower()
+def chunk_text(text, chunk_size=800, overlap=100):
+    words = text.split()
+    chunks = []
+    i = 0
+    while i < len(words):
+        chunk = words[i:i + chunk_size]
+        chunks.append(" ".join(chunk))
+        i += chunk_size - overlap
+    return chunks
+def get_embeddings(texts):
+    if not texts:
+        return []
     
-    found_month = "January"
-    month_index = "01"
+    all_embeddings = []
+    # Gemini API limit is 100 items per batch
+    batch_size = 100
     
-    for i, m in enumerate(months):
-        if m in text_lower:
-            found_month = m.capitalize()
-            month_index = str(i + 1).zfill(2)
-            break
+    for i in range(0, len(texts), batch_size):
+        batch = texts[i : i + batch_size]
+        try:
+            result = client.models.embed_content(
+                model='text-embedding-004',
+                contents=batch
+            )
+            # Add this batch's embeddings to our main list
+            all_embeddings.extend([e.values for e in result.embeddings])
+            print(f"Processed batch {i//batch_size + 1}")
+        except Exception as e:
+            print(f"Error processing batch: {e}")
             
-    return f"{found_month} 2024", f"2024-{month_index}"
+    return all_embeddings
 
-async def analyze_statement(file: UploadFile):
-    transactions = []
-    raw_text = ""
-    
-    try:
-        file_content = await file.read()
-        file_obj = BytesIO(file_content)
+def semantic_search(query, rag_documents, top_k=3):
+    if not rag_documents:
+        return []
         
-        with pdfplumber.open(file_obj) as pdf:
-            for page in pdf.pages:
-                text = page.extract_text()
-                if text:
-                    raw_text += text + "\n"
-        
-        # Optimized Regex for PhonePe / UPI Bank Statements
-        # Looks for: Date | Description (containing UPI/Bank tags) | CR/DR | Amount
-        pattern = r'(\d{2}[-/]\d{2}[-/]\d{2,4})\s+(.+?)\s+(DR|CR|Debit|Credit)\s+([\d,]+\.\d{2})'
-        matches = re.findall(pattern, raw_text)
+    # Embed the single query
+    query_emb_resp = client.models.embed_content(
+        model='text-embedding-004',
+        contents=query
+    )
+    query_embedding = query_emb_resp.embeddings[0].values
 
-        for match in matches:
-            date, desc, tx_type, amount_str = match
-            amount = float(amount_str.replace(',', ''))
-            
-            transactions.append({
-                "date": date,
-                "description": desc.strip(),
-                "amount": amount,
-                "category": categorize_transaction(desc),
-                "is_income": tx_type.lower() in ['cr', 'credit']
-            })
+    scored = []
+    for item in rag_documents:
+        score = cosine_similarity(query_embedding, item["embedding"])
+        scored.append((score, item["text"]))
 
-        if not transactions:
-            # Emergency Fallback: If regex fails, scan text for known category tags
-            for cat, keywords in TAG_MAP.items():
-                if any(k in raw_text.lower() for k in keywords):
-                    transactions.append({"category": cat, "amount": 500, "is_income": False})
+    scored.sort(key=lambda x: x[0], reverse=True)
+    return [text for score, text in scored[:top_k]]
 
-        df = pd.DataFrame(transactions)
-        
-        # Financial Calculations
-        total_income = float(df[df['is_income']]['amount'].sum())
-        total_expense = float(df[~df['is_income']]['amount'].sum())
-        savings_ratio = (total_income - total_expense) / total_income if total_income > 0 else 0
-        
-        # Group summary for Frontend
-        summary = df[~df['is_income']].groupby('category')['amount'].sum().to_dict()
-        top_category = max(summary, key=summary.get) if summary else "None"
-        
-        # Historical Period Detection
-        month_display, period_key = extract_period(raw_text)
+def store_rag_document(doc_id, rag_docs):
+    RAG_STORE[doc_id] = rag_docs
 
-        # Random Forest Prediction
-        prediction_input = np.array([[total_income, total_expense, savings_ratio, len(transactions)]])
-        eligibility_code = loan_model.predict(prediction_input)[0]
-        loan_eligible = "Eligible" if eligibility_code == 1 else "Not Eligible"
-
-        return {
-            "period_key": period_key,
-            "month_display": month_display,
-            "summary": summary,
-            "total_income": total_income,
-            "total_spent": total_expense,
-            "loan_eligible": loan_eligible,
-            "top_category": top_category,
-            "transactions": transactions[:10], # Sample for the UI
-            "analysis_desc": f"Analyzed {len(transactions)} UPI transactions for {month_display}."
-        }
-
-    except Exception as e:
-        return {"error": str(e)}
+def retrieve_rag_document(doc_id):
+    return RAG_STORE.get(doc_id, [])
