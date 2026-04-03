@@ -1,133 +1,154 @@
+import React, { useState } from 'react';
 import { useFinance } from "@/contexts/FinanceContext";
-import { Target, TrendingUp, Calendar, AlertCircle, ArrowUpRight } from "lucide-react";
+import { Target, TrendingUp, Calendar, AlertCircle, ArrowUpRight, Plus, ExternalLink, X } from "lucide-react";
 
 export function GoalsPage() {
-  const { data, getNetSavings } = useFinance();
+  const { data, getNetSavings, addGoal } = useFinance(); // Assuming addGoal exists in your context
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [newGoal, setNewGoal] = useState({ type: '', targetAmount: 0, timeframe: 'mid-term' });
+
   const goals = data.savings.goals;
   const currentSavings = data.savings.currentSavings;
   const netMonthlySavings = getNetSavings();
 
+  const handleRedirect = (url: string) => {
+    window.open(url, '_blank', 'noopener,noreferrer');
+  };
+
+  const handleAddGoal = () => {
+    if (newGoal.type && newGoal.targetAmount > 0) {
+      // Logic to call your context function
+      if (addGoal) addGoal(newGoal);
+      setShowAddForm(false);
+      setNewGoal({ type: '', targetAmount: 0, timeframe: 'mid-term' });
+    }
+  };
+
   return (
-    <div className="space-y-8 animate-in fade-in duration-500">
+    <div className="max-w-6xl mx-auto space-y-8 animate-in fade-in duration-700">
       {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold text-slate-900">Financial Goals</h1>
-        <p className="text-slate-500 mt-1">Tracking your progress from onboarding to reality.</p>
+      <div className="flex justify-between items-center">
+        <div>
+          <h1 className="text-4xl font-black text-slate-900 tracking-tight">Financial Goals</h1>
+          <p className="text-slate-500 font-medium">Turning your dreams into mathematical reality.</p>
+        </div>
+        <button 
+          onClick={() => setShowAddForm(true)}
+          className="bg-blue-600 text-white px-6 py-3 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center gap-2 hover:bg-blue-700 shadow-lg shadow-blue-100 transition-all active:scale-95"
+        >
+          <Plus size={18} /> Add New Goal
+        </button>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* LEFT: Goals List & Progress */}
+        {/* LEFT: Goals List */}
         <div className="lg:col-span-2 space-y-6">
-          {goals.length > 0 ? (
-            goals.map((goal, idx) => {
-              // Logic: Progress calculation
-              const progress = Math.min(100, Math.round((currentSavings / goal.targetAmount) * 100));
-              
-              // Logic: Monthly SIP calculation
-              // Assuming timeframe is in years, converting to months
-              const monthsLeft = goal.timeframe === 'short-term' ? 12 : 
-                                goal.timeframe === 'mid-term' ? 36 : 60;
-              const monthlyNeeded = Math.round((goal.targetAmount - currentSavings) / monthsLeft);
-
-              return (
-                <div key={idx} className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm hover:shadow-md transition-shadow">
-                  <div className="flex justify-between items-start mb-4">
-                    <div className="flex gap-4">
-                      <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center">
-                        <Target size={24} />
-                      </div>
-                      <div>
-                        <h3 className="text-lg font-bold text-slate-800">{goal.type} Goal</h3>
-                        <p className="text-xs text-slate-400 flex items-center gap-1 uppercase font-bold tracking-wider">
-                          <Calendar size={12} /> {goal.timeframe}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-xs text-slate-400 uppercase font-bold">Target Amount</p>
-                      <p className="text-xl font-black text-slate-900">₹{goal.targetAmount.toLocaleString()}</p>
-                    </div>
-                  </div>
-
-                  {/* Progress Bar */}
-                  <div className="space-y-2">
-                    <div className="flex justify-between text-sm">
-                      <span className="text-slate-500 font-medium">Progress</span>
-                      <span className="text-blue-600 font-bold">{progress}%</span>
-                    </div>
-                    <div className="h-3 bg-slate-100 rounded-full overflow-hidden">
-                      <div 
-                        className="h-full bg-blue-600 rounded-full transition-all duration-1000" 
-                        style={{ width: `${progress}%` }} 
-                      />
-                    </div>
-                  </div>
-
-                  {/* Monthly Insight */}
-                  <div className="mt-6 p-4 bg-slate-50 rounded-2xl flex items-center justify-between">
-                    <div>
-                      <p className="text-[10px] text-slate-400 uppercase font-bold">Required Monthly SIP</p>
-                      <p className="text-lg font-bold text-slate-700">₹{monthlyNeeded.toLocaleString()} <span className="text-xs font-normal text-slate-400">/ month</span></p>
-                    </div>
-                    {netMonthlySavings >= monthlyNeeded ? (
-                      <div className="flex items-center gap-1 text-green-600 bg-green-50 px-3 py-1 rounded-full text-xs font-bold">
-                        On Track <ArrowUpRight size={14} />
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-1 text-orange-600 bg-orange-50 px-3 py-1 rounded-full text-xs font-bold">
-                        Need Adjustment
-                      </div>
-                    )}
-                  </div>
-                </div>
-              );
-            })
-          ) : (
-            <div className="bg-white p-12 rounded-3xl border border-dashed border-slate-200 text-center space-y-4">
-              <AlertCircle className="mx-auto text-slate-300" size={48} />
-              <p className="text-slate-500 font-medium">No goals found. Update your profile settings to set targets.</p>
+          {showAddForm && (
+            <div className="bg-slate-900 text-white p-8 rounded-[2.5rem] shadow-2xl animate-in zoom-in duration-300 relative">
+              <button onClick={() => setShowAddForm(false)} className="absolute top-6 right-6 text-slate-400 hover:text-white"><X /></button>
+              <h3 className="text-xl font-bold mb-6">Set a New Target</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <input 
+                  type="text" placeholder="Goal Name (e.g. New Car)" 
+                  className="bg-white/10 border-none rounded-xl p-4 text-white outline-none focus:ring-2 ring-blue-500"
+                  onChange={(e) => setNewGoal({...newGoal, type: e.target.value})}
+                />
+                <input 
+                  type="number" placeholder="Target Amount (₹)" 
+                  className="bg-white/10 border-none rounded-xl p-4 text-white outline-none focus:ring-2 ring-blue-500"
+                  onChange={(e) => setNewGoal({...newGoal, targetAmount: Number(e.target.value)})}
+                />
+                <select 
+                  className="bg-white/10 border-none rounded-xl p-4 text-white outline-none focus:ring-2 ring-blue-500"
+                  onChange={(e) => setNewGoal({...newGoal, timeframe: e.target.value as any})}
+                >
+                  <option value="short-term" className="text-slate-900">Short Term (1yr)</option>
+                  <option value="mid-term" className="text-slate-900">Mid Term (3yr)</option>
+                  <option value="long-term" className="text-slate-900">Long Term (5yr+)</option>
+                </select>
+                <button onClick={handleAddGoal} className="bg-blue-500 hover:bg-blue-400 py-4 rounded-xl font-black uppercase tracking-widest transition-colors">Create Goal</button>
+              </div>
             </div>
           )}
+
+          {goals.map((goal, idx) => {
+            const progress = Math.min(100, Math.round((currentSavings / goal.targetAmount) * 100));
+            const monthsLeft = goal.timeframe === 'short-term' ? 12 : goal.timeframe === 'mid-term' ? 36 : 60;
+            const monthlyNeeded = Math.round((goal.targetAmount - currentSavings) / monthsLeft);
+
+            return (
+              <div key={idx} className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm group">
+                <div className="flex flex-col md:flex-row justify-between gap-6 mb-8">
+                  <div className="flex gap-5">
+                    <div className="w-16 h-16 bg-blue-50 text-blue-600 rounded-[1.5rem] flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform">
+                      <Target size={32} />
+                    </div>
+                    <div>
+                      <h3 className="text-2xl font-black text-slate-900">{goal.type}</h3>
+                      <p className="text-[10px] text-blue-500 font-black uppercase tracking-[0.2em] mt-1">{goal.timeframe}</p>
+                    </div>
+                  </div>
+                  <div className="md:text-right">
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Target</p>
+                    <p className="text-3xl font-black text-slate-900">₹{goal.targetAmount.toLocaleString()}</p>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <div className="flex justify-between text-xs font-black uppercase tracking-widest text-slate-400">
+                    <span>Progress</span>
+                    <span className="text-blue-600">{progress}% Saved</span>
+                  </div>
+                  <div className="h-4 bg-slate-50 rounded-full overflow-hidden p-1 border border-slate-100">
+                    <div className="h-full bg-blue-600 rounded-full transition-all duration-1000" style={{ width: `${progress}%` }} />
+                  </div>
+                </div>
+
+                <div className="mt-8 flex flex-col md:flex-row items-center justify-between gap-4 p-6 bg-slate-50 rounded-[2rem] border border-slate-100">
+                  <div>
+                    <p className="text-[10px] text-slate-400 uppercase font-black tracking-widest">Monthly Commitment</p>
+                    <p className="text-xl font-black text-slate-800">₹{monthlyNeeded.toLocaleString()} <span className="text-xs font-medium opacity-50">/ month</span></p>
+                  </div>
+                  <button 
+                    onClick={() => handleRedirect('https://www.phonepe.com/wealth-management/mutual-funds/sip/')}
+                    className="w-full md:w-auto bg-white border-2 border-blue-100 text-blue-600 px-8 py-3 rounded-xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-blue-600 hover:text-white transition-all shadow-sm"
+                  >
+                    Start SIP <ExternalLink size={14} />
+                  </button>
+                </div>
+              </div>
+            );
+          })}
         </div>
 
-        {/* RIGHT: AI Insights & SIP Suggestions */}
+        {/* RIGHT: Strategy */}
         <div className="space-y-6">
-          <div className="bg-blue-600 p-8 rounded-[2rem] text-white shadow-xl shadow-blue-100">
-            <h3 className="text-xl font-bold flex items-center gap-2 mb-4">
-              <TrendingUp size={22} /> SIP Insights
+          <div className="bg-indigo-600 p-8 rounded-[2.5rem] text-white shadow-xl shadow-indigo-100 relative overflow-hidden">
+            <TrendingUp size={40} className="absolute -right-4 -top-4 opacity-20 rotate-12" />
+            <h3 className="text-xl font-black mb-6 flex items-center gap-2">
+              <TrendingUp size={22} /> AI Strategy
             </h3>
-            <div className="space-y-6">
-              <div>
-                <p className="text-blue-100 text-xs font-bold uppercase tracking-widest mb-2">AI Suggestion</p>
-                <p className="text-sm leading-relaxed opacity-90 italic">
-                  "Based on your {data.analysis?.loanEligible === 'Eligible' ? 'stable' : 'variable'} income, we recommend starting a Multi-cap SIP. You currently have ₹{getNetSavings()} surplus. Diversifying 60% into Equity and 40% into Debt will help reach your '{goals[0]?.type || 'Financial'}' goal 4 months faster."
-                </p>
-              </div>
-              <hr className="opacity-20" />
-              <div className="grid grid-cols-2 gap-4">
-                <div className="bg-white/10 p-3 rounded-2xl">
-                  <p className="text-[10px] uppercase font-bold opacity-60">Risk Profile</p>
-                  <p className="text-lg font-bold">Moderate</p>
-                </div>
-                <div className="bg-white/10 p-3 rounded-2xl">
-                  <p className="text-[10px] uppercase font-bold opacity-60">Strategy</p>
-                  <p className="text-lg font-bold">Growth</p>
-                </div>
-              </div>
-            </div>
+            <p className="text-indigo-100 text-sm leading-relaxed font-medium mb-8">
+              Based on your current surplus of <span className="text-white font-black">₹{getNetSavings().toLocaleString()}</span>, you are {getNetSavings() >= 10000 ? 'On Track' : 'Slightly Behind'} for your primary goal.
+            </p>
+            <button 
+               onClick={() => handleRedirect('https://groww.in/calculators/sip-calculator')}
+               className="w-full py-4 bg-white/10 border border-white/20 rounded-2xl font-bold text-xs uppercase tracking-widest hover:bg-white/20 transition-all flex items-center justify-center gap-2"
+            >
+               Calculate Returns <ArrowUpRight size={16} />
+            </button>
           </div>
 
-          <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
-            <h4 className="font-bold text-slate-800 mb-4">Goal Comparison</h4>
-            <div className="space-y-4 text-sm">
-              <div className="flex justify-between">
-                <span className="text-slate-500">Total Goal Value</span>
-                <span className="font-bold">₹{goals.reduce((acc, g) => acc + g.targetAmount, 0).toLocaleString()}</span>
+          <div 
+            onClick={() => handleRedirect('https://www.cleartax.in/s/best-sip-plans')}
+            className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm cursor-pointer hover:bg-slate-50 transition-colors group"
+          >
+            <div className="flex items-center justify-between">
+              <div>
+                <h4 className="font-bold text-slate-800 text-sm">Best SIP Plans 2025</h4>
+                <p className="text-xs text-slate-400">View curated list by experts</p>
               </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500">Current Progress</span>
-                <span className="font-bold text-blue-600">₹{currentSavings.toLocaleString()}</span>
-              </div>
+              <ArrowUpRight size={20} className="text-slate-300 group-hover:text-blue-600" />
             </div>
           </div>
         </div>

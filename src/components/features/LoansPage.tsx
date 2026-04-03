@@ -1,10 +1,15 @@
 import React, { useState } from 'react';
 import { useFinance } from '@/contexts/FinanceContext';
-import { Landmark, Calendar, CreditCard, Info, ChevronRight, Calculator } from 'lucide-react';
+import { Landmark, Calendar, CreditCard, Info, ChevronRight, Calculator, ExternalLink } from 'lucide-react';
 
 export function LoansPage() {
   const { data } = useFinance();
   const [extraAmount, setExtraAmount] = useState<number>(0);
+
+  // Helper function for external redirects
+  const handleRedirect = (url: string) => {
+    window.open(url, '_blank', 'noopener,noreferrer');
+  };
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
@@ -25,7 +30,7 @@ export function LoansPage() {
             <div className="flex justify-between items-start">
               <div className="flex gap-4">
                 <div className="w-12 h-12 bg-red-50 text-red-500 rounded-2xl flex items-center justify-center text-xl">
-                  🏠
+                  {loan.type.toLowerCase().includes('home') ? '🏠' : '🚗'}
                 </div>
                 <div>
                   <h3 className="font-bold text-slate-800">{loan.type}</h3>
@@ -37,21 +42,25 @@ export function LoansPage() {
             
             <div className="space-y-2">
               <div className="flex justify-between text-xs font-bold text-slate-400 uppercase">
-                <span>50% Paid</span>
-                <span>Next: 2025-12-05</span>
+                <span>Progress</span>
+                <span>Due: 5th of Month</span>
               </div>
               <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-                <div className="h-full bg-red-500 w-1/2 rounded-full" />
+                <div className="h-full bg-red-500 w-1/3 rounded-full" />
               </div>
             </div>
 
-            <button className="w-full py-3 bg-indigo-600 text-white rounded-2xl font-bold shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all">
-              Pay Now
+            {/* Redirects to PhonePe Loan Repayment Section */}
+            <button 
+              onClick={() => handleRedirect('https://paytm.com/loan-emi-payment')}
+              className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-bold shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all flex items-center justify-center gap-2 group"
+            >
+              Pay now <ExternalLink size={16} className="group-hover:translate-x-1 transition-transform" />
             </button>
           </div>
         )) : (
           <div className="col-span-2 py-10 text-center bg-slate-50 rounded-3xl border border-dashed text-slate-400 font-medium">
-            No active loans found. Check your profile settings.
+            No active loans found.
           </div>
         )}
       </div>
@@ -66,7 +75,7 @@ export function LoansPage() {
         
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <select className="p-4 bg-white rounded-2xl border-none shadow-sm text-sm outline-none focus:ring-2 ring-indigo-300" aria-label="Select a loan">
-            <option>Select an option</option>
+            <option>Select a Loan Type</option>
             {data.loans.map((l, i) => <option key={i}>{l.type}</option>)}
           </select>
           <input 
@@ -75,15 +84,20 @@ export function LoansPage() {
             className="p-4 bg-white rounded-2xl border-none shadow-sm text-sm outline-none focus:ring-2 ring-indigo-300"
             onChange={(e) => setExtraAmount(Number(e.target.value))}
           />
-          <button className="bg-indigo-600 text-white rounded-2xl font-bold hover:bg-indigo-700 transition-all">
-            Check Saving
+          
+          {/* Redirects to a professional Prepayment Calculator */}
+          <button 
+            onClick={() => handleRedirect('https://loancalculatoronline.org/in/loan-repayment-calculator')}
+            className="bg-indigo-600 text-white rounded-2xl font-bold hover:bg-indigo-700 transition-all shadow-md flex items-center justify-center gap-2"
+          >
+            Check Savings <ExternalLink size={16} />
           </button>
         </div>
 
         <div className="bg-white p-5 rounded-2xl border border-indigo-100">
-          <p className="text-indigo-900 font-bold text-sm uppercase tracking-wide mb-1 text-[10px]">Result:</p>
+          <p className="text-indigo-900 font-bold text-sm uppercase tracking-wide mb-1 text-[10px]">Quick Estimate:</p>
           <p className="text-indigo-700 text-sm font-medium">
-            By paying just ₹{extraAmount || 500} more, you save interest and finish your loan 6 months early!
+            By paying just ₹{extraAmount || 500} more, you save significant interest! Click "Check Savings" to see the exact months you'll skip.
           </p>
         </div>
       </div>
