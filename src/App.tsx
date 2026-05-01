@@ -19,6 +19,7 @@ import { GoalsPage } from "./components/features/GoalsPage";
 import { BillsPage } from "./components/features/BillsPage";
 import { TipsPage } from "./components/features/TipsPage";
 import { ExpensesPage } from "./components/features/ExpensesPage";
+import SavingsHistory from "./components/features/SavingsHistory";
 import { ProfilePage } from "./components/features/ProfilePage";
 import NotFound from "./pages/NotFound";
 
@@ -176,6 +177,7 @@ const MainApp = ({ onLogout }: { onLogout: () => void }) => {
             {activeTab === "goals" && <GoalsPage />}
             {activeTab === "tips" && <TipsPage />}
             {activeTab === "expenses" && <ExpensesPage />}
+            {activeTab === "savingsHistory" && <SavingsHistory />}
             {activeTab === "profile" && <ProfilePage />}
           </div>
         </main>

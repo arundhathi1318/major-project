@@ -12,8 +12,6 @@ from dotenv import load_dotenv
 from google import genai
 import re
 
-clean_text = re.sub(r'[\*\#\_\`\~]', '', response.text)  # strip markdown chars
-clean_text = re.sub(r'\n{3,}', '\n\n', clean_text).strip()  # collapse blank lines
 from analysisengine import (
     chunk_text,
     get_embeddings,
@@ -236,32 +234,41 @@ Do NOT use markdown symbols like *, #, -, or bullet formatting.
 Write output as clean plain sentences.
 """
 
-    # ===============================
-    # GEMINI RESPONSE GENERATION
-    # ===============================
+# ===============================
+# GEMINI RESPONSE GENERATION
+# ===============================
 
-    try:
+try:
 
-        response = client.models.generate_content(
+    response = client.models.generate_content(
 
-            model="gemini-2.5-flash",
+        model="gemini-2.5-flash",
 
-            contents=prompt
+        contents=prompt
 
-        )
+    )
 
-        clean_text = response.text.replace("*", "").replace("#", "")
+    clean_text = response.text
 
-        return {
-            "response": clean_text
-        }
+    # remove markdown characters like *, #, _, `, ~
+    clean_text = re.sub(r'[\*\#\_\`\~]', '', clean_text)
 
-    except Exception as e:
+    # remove bullet points like "- "
+    clean_text = re.sub(r'^\s*-\s+', '', clean_text, flags=re.MULTILINE)
 
-        raise HTTPException(
+    # collapse extra blank lines
+    clean_text = re.sub(r'\n{3,}', '\n\n', clean_text).strip()
+    
+    return {
+        "response": clean_text
+    }
 
-            status_code=500,
+except Exception as e:
 
-            detail=str(e)
+    raise HTTPException(
 
-        )
+        status_code=500,
+
+        detail=str(e)
+
+    )

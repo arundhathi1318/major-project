@@ -19,6 +19,7 @@ export function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
     { id: 'goals', label: 'Goals', icon: Target },
     { id: 'tips', label: 'Tips', icon: Lightbulb },
     { id: 'expenses', label: 'Expenses', icon: PieChart },
+     { id: 'savingsHistory', label: 'Savings History', icon: PieChart },
     { id: 'profile', label: 'Profile', icon: User },
   ];
 

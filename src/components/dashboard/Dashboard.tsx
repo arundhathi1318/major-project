@@ -32,7 +32,7 @@ export function Dashboard() {
       {/* Welcome Section */}
       <div className="mb-8">
         <h2 className="text-3xl font-black text-slate-900 tracking-tight">
-          Welcome back, {data.profile.fullName.split(' ')[0] || 'User'}! 👋
+          Welcome back, {data.profile.fullName.split(' ')[0] || 'User'}! 
         </h2>
         <p className="text-slate-500 font-medium mt-1">
           Here's your financial overview for this month.
